@@ -1,0 +1,226 @@
+<div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a
+
+        href="https://github.com/ddsol/speedtest.net#readme"
+
+    >speedtest-net (v1.3.1)</a>
+</h1>
+<h4>Speedtest.net client</h4>
+<div class="apidocSectionDiv"><a
+    href="#apidoc.tableOfContents"
+    id="apidoc.tableOfContents"
+><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.speedtest-net">module speedtest-net</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.speedtest-net.visual">
+            function <span class="apidocSignatureSpan">speedtest-net.</span>visual
+            <span class="apidocSignatureSpan">(options, callback)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.speedtest-net" id="apidoc.module.speedtest-net">module speedtest-net</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.speedtest-net.visual" id="apidoc.element.speedtest-net.visual">
+        function <span class="apidocSignatureSpan">speedtest-net.</span>visual
+        <span class="apidocSignatureSpan">(options, callback)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function visualSpeedTest(options, callback) {
+  // We only need chalk and DraftLog here. Lazy load it.
+  var chalk = require(&#x27;chalk&#x27;);
+  require(&#x27;draftlog&#x27;).into(console);
+
+  callback = once(callback);
+
+  var test = speedTest(options)
+    , log  = function() {}
+    , finalData
+    , percentage = 0
+    , speed = 0
+    , bar = console.draft()
+    ;
+
+  if (options.log) {
+    if (typeof options.log === &#x22;function&#x22;) {
+      log = options.log;
+    } else {
+      log = console.log.bind(console);
+    }
+  }
+
+  test.on(&#x27;error&#x27;, function(err) {
+    callback(err);
+  });
+
+  test.on(&#x27;testserver&#x27;, function(server) {
+    log(&#x27;Using server by &#x27; + server.sponsor + &#x27; in &#x27; + server.name + &#x27;, &#x27; + server.country + &#x27; (&#x27; + (server.distMi * 0.621371).toFixed
+(0) + &#x27;mi, &#x27; + (server.bestPing).toFixed(0) + &#x27;ms)&#x27;);
+  });
+
+  test.on(&#x27;config&#x27;, function(config) {
+    var client = config.client;
+    log(&#x27;Testing from &#x27; + client.ip + &#x27; at &#x27; + client.isp + &#x27;, expected dl: &#x27; + (client.ispdlavg / 8000).toFixed(2) + &#x27;MB/s, expected
+ ul: &#x27; + (client.ispulavg / 8000).toFixed(2) + &#x27;MB/s&#x27;);
+  });
+
+  var size = 50;
+  var red = (chalk.supportsColor ? chalk.bgRed(&#x27; &#x27;) : &#x27;─&#x27;);
+  var green = (chalk.supportsColor ? chalk.bgGreen(&#x27; &#x27;) : &#x27;▇&#x27;);
+
+  function prog(what, pct, spd) {
+    percentage = pct || percentage;
+    speed = spd || speed;
+
+    var complete = Math.round(percentage / 100 * size);
+    var barStr = &#x27;&#x27;;
+
+    // What + padding
+    barStr += what;
+    barStr += &#x27; &#x27;.repeat(12 - what.length);
+
+    // Bar
+    barStr += green.repeat(complete);
+    barStr += red.repeat(size - complete);
+
+    // Percent
+    pct = percentage + &#x27;%&#x27;;
+    barStr += &#x27; &#x27; + pct;
+
+    // Speed
+    barStr += &#x27; &#x27;.repeat(8 - pct.length) + speed;
+
+    bar(barStr);
+  }
+
+  test.on(&#x27;downloadprogress&#x27;, function(pct) {
+    prog(&#x27;download&#x27;, pct, null);
+  });
+
+  test.on(&#x27;uploadprogress&#x27;, function(pct) {
+    prog(&#x27;upload&#x27;, pct, null);
+  });
+
+  test.on(&#x27;downloadspeed&#x27;, function(speed) {
+    log(&#x27;Download speed: &#x27;, speed.toFixed(2) + &#x27;Mbps&#x27;);
+
+    // Create a new line after each new download
+    bar = console.draft();
+  });
+
+  test.on(&#x27;uploadspeed&#x27;, function(speed) {
+    log(&#x27;Upload speed: &#x27;, speed.toFixed(2) + &#x27;Mbps&#x27;);
+
+    // Create a new line after each new upload
+    bar = console.draft();
+  });
+
+  test.on(&#x27;downloadspeedprogress&#x27;, function(speed) {
+    prog(&#x27;download&#x27;, null, speed.toFixed(2) + &#x27;Mbps&#x27;)
+  });
+
+  test.on(&#x27;uploadspeedprogress&#x27;, function(speed) {
+    prog(&#x27;upload&#x27;, null, speed.toFixed(2) + &#x27;Mbps&#x27;)
+  });
+
+  test.on(&#x27;data&#x27;, function(data) {
+    finalData = data;
+  });
+
+  test.on(&#x27;result&#x27;, function(url) {
+    log(&#x27;Results url: &#x27; + url);
+  });
+
+  test.on(&#x27;done&#x27;, function(data) {
+    callback(null, finalData);
+  });
+
+  return test;
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+
+```
+
+Visual use example:
+```js
+const speedTest = require(&#x27;speedtest-net&#x27;);
+
+speedTest.<span class="apidocCodeKeywordSpan">visual</span>({maxTime: 5000}, (err, data) =&#x3e; {
+  console.dir(data);
+});
+```
+
+## Options
+
+You can pass an optional `options` object.
+...</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
