@@ -63,6 +63,15 @@
 
         <li>
 
+            <a class="apidocElementLiA" href="#apidoc.element.speedtest-net.speedtest-net">
+            function <span class="apidocSignatureSpan"></span>speedtest-net
+            <span class="apidocSignatureSpan">(options)</span>
+            </a>
+
+        </li>
+
+        <li>
+
             <a class="apidocElementLiA" href="#apidoc.element.speedtest-net.visual">
             function <span class="apidocSignatureSpan">speedtest-net.</span>visual
             <span class="apidocSignatureSpan">(options, callback)</span>
@@ -76,6 +85,164 @@
 
 <div class="apidocSectionDiv">
 <h1><a href="#apidoc.module.speedtest-net" id="apidoc.module.speedtest-net">module speedtest-net</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.speedtest-net.speedtest-net" id="apidoc.element.speedtest-net.speedtest-net">
+        function <span class="apidocSignatureSpan"></span>speedtest-net
+        <span class="apidocSignatureSpan">(options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function speedTest(options) {
+
+  options = options || {};
+
+  options.maxTime = options.maxTime || 10000;
+  options.pingCount = options.pingCount || (options.serverId ? 1 : 5);
+  options.maxServers = options.maxServers || 1;
+
+  var self = new EventEmitter()
+    , speedInfo = {}
+    , serversUrls = [
+        &#x27;http://www.speedtest.net/speedtest-servers-static.php&#x27;,
+        &#x27;http://www.speedtest.net/speedtest-servers-static.php?really=yes&#x27;,
+        &#x27;https://www.speedtest.net/speedtest-servers-static.php&#x27;,
+        &#x27;https://www.speedtest.net/speedtest-servers-static.php?really=totally&#x27;,
+        &#x27;http://www.speedtest.net/speedtest-servers.php&#x27;,
+        &#x27;http://www.speedtest.net/speedtest-servers.php?really=sure&#x27;,
+        &#x27;https://www.speedtest.net/speedtest-servers.php&#x27;,
+        &#x27;https://www.speedtest.net/speedtest-servers.php?really=absolutely&#x27;
+      ]
+    , curServer = 0
+    , serversUrl
+    ;
+
+  function httpOpts(theUrl) {
+    var o = url.parse(theUrl);
+    o.headers = options.headers || {};
+    return o;
+  }
+
+  //Fetch config
+
+  getXML(httpOpts(&#x27;http://www.speedtest.net/speedtest-config.php&#x27;), gotConfig);
+
+  function gotConfig(err, config) {
+    if (err) return self.emit(&#x27;error&#x27;, err);
+    config = config &#x26;&#x26; config.settings || {};
+
+    function get(name) {
+      return ((config[name] || [])[0] || {}).$ || {}
+    }
+
+    var client   = get(&#x27;client&#x27;)
+      , times    = get(&#x27;times&#x27;)
+      , download = get(&#x27;download&#x27;)
+      , upload   = get(&#x27;upload&#x27;)
+      ;
+
+    speedInfo.config = {client: client, times: times, download: download, upload: upload};
+
+    self.emit(&#x27;config&#x27;, speedInfo.config);
+    gotData();
+  }
+
+  if (options.serversUrl) {
+    serversUrl = options.serversUrl;
+    curServer = -1;
+  }
+
+  function nextServer(err) {
+    if (curServer &#x3e;= serversUrls.length) {
+      return self.emit(&#x27;error&#x27;, err || new Error(&#x27;There was a problem getting the list of servers from SpeedTest.net. Consider using
+ a custom serversUrl&#x27;));
+    }
+    if (curServer &#x3c; 0) {
+      curServer = serversUrls.length;
+    } else {
+      serversUrl = serversUrls[curServer];
+      curServer++;
+    }
+    getXML(httpOpts(serversUrl), gotServers);
+  }
+
+  nextServer();
+
+  function gotServers(err, servers) {
+    if (err || !servers) return nextServer(err);
+    var s = servers.settings.servers[0].server;
+
+    servers = [];
+    for (var n = 0; n &#x3c; s.length; n++) {
+      if (options.serverId &#x26;&#x26; s[n].$.id == options.serverId) {
+        servers = [s[n].$];
+        break;
+      }
+      servers.push(s[n].$);
+    }
+
+    speedInfo.servers = servers;
+
+    self.emit(&#x27;servers&#x27;, servers);
+    gotData()
+  }
+
+  function gotData() {
+    if (!speedInfo.config || !speedInfo.servers) return; //not ready yet
+
+    //order servers by how close they are:
+    var servers = speedInfo.servers;
+
+    for (var n = 0; n &#x3c; servers.length; n++) {
+      var server = servers[n]
+        , dist   = distance(speedInfo.config.client, server)
+        ;
+
+      server.dist = dist;
+      server.distMi = dist * 0.621371;
+    }
+
+    servers.sort(function(a, b) {
+      return (a.dist - b.dist);
+    });
+
+    pingServers(servers, options.pingCount, function(err, bestServers) {
+      if (!bestServers || !bestServers.length) return self.emit(&#x27;error&#x27;, new Error(&#x27;Could not find a server to test on.&#x27;));
+
+      speedInfo.bestServers = bestServers;
+      speedInfo.bestServer = speedInfo.bestServers[0];
+      self.emit(&#x27;bestservers&#x27;, bestServers);
+
+      startDownload();
+    });
+  }
+
+  function startDownload(ix) {
+    ix = ix || 0;
+    if (ix &#x3e;= speedInfo.bestServers.length || ix &#x3e;= options.maxServers) return startUpload();
+    var server = speedInfo.bestServers[ix]
+      , svrurl = server.url
+      , sizes  = [350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000]
+      , urls   = []
+      , n
+      , i
+      , size
+      ;
+
+    for (n = 0; n &#x3c; sizes.length; n++) {
+      size = sizes[n];
+      for (i = 0; i &#x3c; 4; i++) {
+        urls.push(url.resolve(svrurl, &#x27;random&#x27; + size + &#x27;x&#x27; + size + &#x27;.jpg&#x27;));
+      }
+    }
+
+    self.emit(&#x27;testserver&#x27;, server);
+
+    downloadSpeed.call(self, urls, options.maxTime, function(err ...</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
 
 
     <h2>
